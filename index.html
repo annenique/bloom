@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bloom — A Phytoplankton Ecosystem</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #020a14;
+    overflow: hidden;
+    font-family: 'Courier New', monospace;
+    color: #d4f1f4;
+  }
+
+  canvas { display: block; }
+
+  /* ---- HUD ---- */
+  #hud {
+    position: fixed;
+    top: 20px;
+    left: 20px;
+    z-index: 10;
+    pointer-events: none;
+  }
+
+  #hud h1 {
+    font-size: 18px;
+    letter-spacing: 0.15em;
+    color: #7dd3fc;
+    text-shadow: 0 0 12px rgba(125, 211, 252, 0.5);
+    font-weight: normal;
+  }
+
+  #hud .depth-readout {
+    font-size: 12px;
+    color: #5fa8b8;
+    margin-top: 6px;
+    letter-spacing: 0.05em;
+  }
+
+  /* ---- CROSSHAIR ---- */
+  #crosshair {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    width: 6px;
+    height: 6px;
+    margin: -3px 0 0 -3px;
+    border-radius: 50%;
+    background: rgba(212, 241, 244, 0.5);
+    z-index: 10;
+    pointer-events: none;
+  }
+
+  /* ---- CONTROLS PANEL ---- */
+  #panel {
+    position: fixed;
+    bottom: 20px;
+    left: 20px;
+    z-index: 10;
+    background: rgba(2, 10, 20, 0.75);
+    border: 1px solid rgba(125, 211, 252, 0.25);
+    border-radius: 8px;
+    padding: 18px 20px;
+    width: 280px;
+    backdrop-filter: blur(6px);
+  }
+
+  #panel h2 {
+    font-size: 11px;
+    letter-spacing: 0.15em;
+    color: #7dd3fc;
+    margin-bottom: 14px;
+    text-transform: uppercase;
+  }
+
+  .slider-row {
+    margin-bottom: 14px;
+  }
+
+  .slider-row:last-child { margin-bottom: 0; }
+
+  .slider-row label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    color: #a8d8e0;
+    margin-bottom: 5px;
+  }
+
+  .slider-row .val {
+    color: #7dd3fc;
+    font-weight: bold;
+  }
+
+  .slider-row input[type="range"] {
+    width: 100%;
+    -webkit-appearance: none;
+    height: 3px;
+    background: rgba(125, 211, 252, 0.2);
+    border-radius: 2px;
+    outline: none;
+  }
+
+  .slider-row input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: #7dd3fc;
+    cursor: pointer;
+    box-shadow: 0 0 8px rgba(125, 211, 252, 0.6);
+  }
+
+  /* ---- INSTRUCTIONS OVERLAY ---- */
+  #startOverlay {
+    position: fixed;
+    inset: 0;
+    background: #020a14;
+    z-index: 100;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    cursor: pointer;
+  }
+
+  #startOverlay h1 {
+    font-size: 42px;
+    color: #7dd3fc;
+    letter-spacing: 0.1em;
+    text-shadow: 0 0 20px rgba(125, 211, 252, 0.4);
+    margin-bottom: 12px;
+    font-weight: normal;
+  }
+
+  #startOverlay p {
+    color: #5fa8b8;
+    font-size: 13px;
+    line-height: 2;
+    max-width: 360px;
+  }
+
+  #startOverlay .key {
+    display: inline-block;
+    border: 1px solid #5fa8b8;
+    border-radius: 4px;
+    padding: 1px 7px;
+    margin: 0 2px;
+    font-size: 11px;
+  }
+
+  #startOverlay .start-btn {
+    margin-top: 30px;
+    padding: 14px 36px;
+    border: 1px solid #7dd3fc;
+    border-radius: 6px;
+    color: #7dd3fc;
+    font-size: 13px;
+    letter-spacing: 0.1em;
+    background: rgba(125, 211, 252, 0.08);
+  }
+
+  #fpsCounter {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    font-size: 10px;
+    color: #3a6470;
+    z-index: 10;
+  }
+</style>
+</head>
+<body>
+
+  <div id="startOverlay">
+    <h1>B L O O M</h1>
+    <p>
+      A phytoplankton ecosystem, swimming-distance away.<br><br>
+      <span class="key">W</span><span class="key">A</span><span class="key">S</span><span class="key">D</span> to swim &nbsp;·&nbsp;
+      mouse to look &nbsp;·&nbsp;
+      <span class="key">SPACE</span> up &nbsp;·&nbsp;
+      <span class="key">SHIFT</span> down
+    </p>
+    <div class="start-btn">Click to dive in</div>
+  </div>
+
+  <div id="hud">
+    <h1>BLOOM</h1>
+    <div class="depth-readout" id="depthReadout">DEPTH — 0.0m</div>
+  </div>
+
+  <div id="crosshair"></div>
+  <div id="fpsCounter">— fps</div>
+
+  <div id="panel">
+    <h2>Water Column · Test Controls</h2>
+    <div class="slider-row">
+      <label>Plankton Density <span class="val" id="densityVal">50%</span></label>
+      <input type="range" id="densitySlider" min="0" max="100" value="50">
+    </div>
+  </div>
+
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
+
+  <script type="module" src="main.js"></script>
+</body>
+</html>
