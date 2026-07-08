@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bloom — Survive as a Phytoplankton</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:#020a14; overflow:hidden; font-family:'Courier New',monospace; color:#d4f1f4; }
+canvas { display:block; }
+
+/* ---- START OVERLAY ---- */
+#startOverlay {
+  position:fixed; inset:0; background:linear-gradient(180deg,#020a14 0%,#051a2e 100%);
+  z-index:200; display:flex; flex-direction:column; align-items:center; justify-content:center;
+  text-align:center; padding:20px;
+}
+#startOverlay h1 {
+  font-size:clamp(36px,8vw,72px); letter-spacing:0.2em; color:#7dd3fc;
+  text-shadow:0 0 30px rgba(125,211,252,0.5); font-weight:normal; margin-bottom:8px;
+}
+#startOverlay .tagline { font-size:14px; color:#5fa8b8; letter-spacing:0.1em; margin-bottom:30px; }
+.info-grid {
+  display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr));
+  gap:12px; max-width:700px; margin-bottom:30px;
+}
+.info-card {
+  background:rgba(13,74,110,0.3); border:1px solid rgba(125,211,252,0.2);
+  border-radius:8px; padding:14px 12px; text-align:left;
+}
+.info-card .icon { font-size:20px; margin-bottom:6px; }
+.info-card strong { display:block; font-size:12px; color:#7dd3fc; margin-bottom:4px; letter-spacing:0.05em; }
+.info-card p { font-size:11px; color:#6a8fa0; line-height:1.5; }
+.controls-row {
+  font-size:12px; color:#5fa8b8; margin-bottom:28px; line-height:2;
+}
+.key {
+  display:inline-block; border:1px solid #3a6478; border-radius:3px;
+  padding:1px 6px; margin:0 2px; font-size:10px; background:rgba(125,211,252,0.08);
+}
+#startBtn {
+  padding:15px 44px; border:1.5px solid #7dd3fc; border-radius:6px;
+  background:rgba(125,211,252,0.1); color:#7dd3fc; font-size:14px;
+  letter-spacing:0.15em; cursor:pointer; font-family:inherit;
+  transition:background 0.3s;
+}
+#startBtn:hover { background:rgba(125,211,252,0.2); }
+
+/* ---- GAME OVER ---- */
+#gameOverScreen {
+  position:fixed; inset:0; background:rgba(0,0,0,0.85); z-index:150;
+  display:none; flex-direction:column; align-items:center; justify-content:center; text-align:center;
+}
+#gameOverScreen h2 { font-size:42px; color:#ef4444; margin-bottom:12px; font-weight:normal; letter-spacing:0.1em; }
+#gameOverScreen p  { font-size:14px; color:#9ca3af; margin-bottom:8px; max-width:380px; line-height:1.6; }
+#gameOverScreen .fact { font-size:12px; color:#5fa8b8; font-style:italic; margin-top:10px; max-width:340px; line-height:1.6; }
+
+/* ---- WIN ---- */
+#winScreen {
+  position:fixed; inset:0; background:rgba(0,30,10,0.9); z-index:150;
+  display:none; flex-direction:column; align-items:center; justify-content:center; text-align:center;
+}
+#winScreen h2 { font-size:42px; color:#4ade80; margin-bottom:12px; font-weight:normal; letter-spacing:0.1em; }
+#winScreen p  { font-size:14px; color:#86efac; margin-bottom:8px; max-width:380px; line-height:1.6; }
+#winScreen .fact { font-size:12px; color:#5fa8b8; font-style:italic; margin-top:10px; max-width:340px; line-height:1.6; }
+
+.screen-btn {
+  margin-top:24px; padding:13px 36px; border:1.5px solid currentColor;
+  border-radius:6px; background:transparent; font-size:13px; letter-spacing:0.1em;
+  cursor:pointer; font-family:inherit; transition:background 0.3s;
+}
+#restartBtn    { color:#ef4444; }
+#restartBtn:hover { background:rgba(239,68,68,0.15); }
+#winRestartBtn { color:#4ade80; }
+#winRestartBtn:hover { background:rgba(74,222,128,0.15); }
+
+/* ---- HUD ---- */
+#hud {
+  position:fixed; top:0; left:0; right:0; z-index:10;
+  pointer-events:none;
+}
+
+/* Top bar */
+#topBar {
+  display:flex; align-items:center; gap:0;
+  background:rgba(2,10,20,0.7); backdrop-filter:blur(8px);
+  border-bottom:1px solid rgba(125,211,252,0.15);
+  padding:10px 20px; gap:24px;
+}
+#topBar .brand { font-size:14px; letter-spacing:0.2em; color:#7dd3fc; flex-shrink:0; }
+
+/* Energy bar */
+.energy-wrap { display:flex; align-items:center; gap:10px; flex:1; max-width:280px; }
+.energy-label { font-size:10px; color:#5fa8b8; letter-spacing:0.1em; white-space:nowrap; }
+.energy-track {
+  flex:1; height:8px; background:rgba(255,255,255,0.1);
+  border-radius:4px; overflow:hidden;
+}
+#energyFill { height:100%; width:60%; border-radius:4px; transition:width 0.3s, background 0.5s; }
+
+/* Stats pills */
+.stats-row { display:flex; gap:14px; flex-wrap:wrap; }
+.stat-pill {
+  font-size:10px; color:#5fa8b8; letter-spacing:0.05em;
+  display:flex; gap:5px; align-items:center;
+}
+.stat-pill span { color:#7dd3fc; font-weight:bold; }
+
+/* FPS */
+#fps { position:fixed; top:12px; right:16px; font-size:10px; color:#2a4a5a; z-index:11; }
+
+/* Crosshair */
+#crosshair {
+  position:fixed; top:50%; left:50%; transform:translate(-50%,-50%);
+  width:8px; height:8px; border-radius:50%;
+  border:1.5px solid rgba(212,241,244,0.4); z-index:10; pointer-events:none;
+}
+
+/* Warnings */
+.warning-banner {
+  position:fixed; left:50%; transform:translateX(-50%);
+  padding:8px 20px; border-radius:20px; font-size:12px;
+  letter-spacing:0.08em; pointer-events:none; opacity:0;
+  transition:opacity 0.3s; z-index:12; text-align:center;
+}
+#predatorWarn {
+  top:70px; background:rgba(239,68,68,0.25); border:1px solid rgba(239,68,68,0.5);
+  color:#fca5a5;
+}
+#deadZoneWarn {
+  top:100px; background:rgba(234,88,12,0.25); border:1px solid rgba(234,88,12,0.5);
+  color:#fdba74;
+}
+
+/* Bio panel (bottom left) */
+#bioPanel {
+  position:fixed; bottom:16px; left:16px; z-index:10;
+  background:rgba(2,10,20,0.72); border:1px solid rgba(125,211,252,0.18);
+  border-radius:8px; padding:14px 16px; width:230px; backdrop-filter:blur(6px);
+}
+#bioPanel h3 { font-size:10px; letter-spacing:0.15em; color:#7dd3fc; margin-bottom:10px; }
+.bio-row { display:flex; justify-content:space-between; font-size:11px; color:#5fa8b8; margin-bottom:6px; }
+.bio-row span { color:#b0e0ea; }
+
+/* Goal panel (bottom right) */
+#goalPanel {
+  position:fixed; bottom:16px; right:16px; z-index:10;
+  background:rgba(2,10,20,0.72); border:1px solid rgba(125,211,252,0.18);
+  border-radius:8px; padding:14px 16px; width:210px; backdrop-filter:blur(6px);
+}
+#goalPanel h3 { font-size:10px; letter-spacing:0.15em; color:#7dd3fc; margin-bottom:10px; }
+.goal-row { display:flex; justify-content:space-between; align-items:center; font-size:11px; color:#5fa8b8; margin-bottom:8px; }
+.goal-row span { color:#4ade80; font-weight:bold; }
+.goal-track { width:100%; height:4px; background:rgba(255,255,255,0.1); border-radius:2px; margin-top:2px; }
+.goal-fill  { height:100%; background:linear-gradient(90deg,#4ade80,#7dd3fc); border-radius:2px; transition:width 0.5s; }
+
+/* Science tip */
+#scienceTip {
+  position:fixed; bottom:16px; left:50%; transform:translateX(-50%);
+  max-width:360px; background:rgba(2,10,20,0.72); border:1px solid rgba(125,211,252,0.18);
+  border-radius:8px; padding:10px 14px; font-size:11px; color:#5fa8b8;
+  line-height:1.6; text-align:center; z-index:10; backdrop-filter:blur(6px);
+}
+#scienceTip strong { color:#7dd3fc; display:block; margin-bottom:3px; font-size:10px; letter-spacing:0.08em; }
+</style>
+</head>
+<body>
+
+<!-- START OVERLAY -->
+<div id="startOverlay">
+  <h1>B L O O M</h1>
+  <p class="tagline">Survive as a phytoplankton in a changing ocean</p>
+
+  <div class="info-grid">
+    <div class="info-card">
+      <div class="icon">☀️</div>
+      <strong>PHOTOSYNTHESIZE</strong>
+      <p>Swim toward the surface to absorb sunlight and generate energy. Light fades with depth.</p>
+    </div>
+    <div class="info-card">
+      <div class="icon">🟡</div>
+      <strong>ABSORB NUTRIENTS</strong>
+      <p>Find glowing yellow nutrient patches (nitrogen & phosphorus) and swim through them to boost energy.</p>
+    </div>
+    <div class="info-card">
+      <div class="icon">🔴</div>
+      <strong>AVOID HAZARDS</strong>
+      <p>Red zones are oxygen-depleted dead zones. A red predator is hunting your bloom. Stay away.</p>
+    </div>
+    <div class="info-card">
+      <div class="icon">🧬</div>
+      <strong>REPRODUCE</strong>
+      <p>Fill your energy bar completely and your cell splits. Grow your population to 20 cells to win.</p>
+    </div>
+  </div>
+
+  <div class="controls-row">
+    <span class="key">W</span><span class="key">A</span><span class="key">S</span><span class="key">D</span> swim &nbsp;·&nbsp;
+    <span class="key">SPACE</span> rise &nbsp;·&nbsp;
+    <span class="key">SHIFT</span> dive &nbsp;·&nbsp;
+    Mouse steer
+  </div>
+
+  <button id="startBtn">▶ DIVE IN</button>
+</div>
+
+<!-- GAME OVER -->
+<div id="gameOverScreen">
+  <h2>CELL DEATH</h2>
+  <p>Your phytoplankton cell ran out of energy and died.</p>
+  <p class="fact">🔬 In the real ocean, phytoplankton cells die when they sink below the photic zone — the sunlit layer where photosynthesis is possible. Without light, they can't produce energy and cellular respiration consumes them.</p>
+  <button id="restartBtn" class="screen-btn">↺ TRY AGAIN</button>
+</div>
+
+<!-- WIN -->
+<div id="winScreen">
+  <h2>BLOOM!</h2>
+  <p>Your population reached 20 cells. You've created a phytoplankton bloom!</p>
+  <p class="fact">🌊 Phytoplankton produce over 50% of Earth's oxygen and form the base of the marine food web. But too much of a good thing causes harmful algal blooms — when nutrients overflow from agricultural runoff, populations explode and crash, creating oxygen-depleted dead zones.</p>
+  <button id="winRestartBtn" class="screen-btn">↺ PLAY AGAIN</button>
+</div>
+
+<!-- HUD -->
+<div id="hud">
+  <div id="topBar">
+    <div class="brand">BLOOM</div>
+    <div class="energy-wrap">
+      <div class="energy-label">CELL ENERGY</div>
+      <div class="energy-track"><div id="energyFill"></div></div>
+      <div class="stat-pill"><span id="energyReadout">60</span></div>
+    </div>
+    <div class="stats-row">
+      <div class="stat-pill">DEPTH <span id="depthReadout">0m</span></div>
+      <div class="stat-pill">LIGHT <span id="lightReadout">100%</span></div>
+      <div class="stat-pill">PHOTOSYN <span id="photoReadout">0 E/s</span></div>
+      <div class="stat-pill">POP <span id="popCount">1</span></div>
+    </div>
+  </div>
+</div>
+
+<div id="crosshair"></div>
+<div id="fps">— fps</div>
+
+<!-- WARNINGS -->
+<div class="warning-banner" id="predatorWarn">⚠️ ZOOPLANKTON PREDATOR NEARBY — SWIM AWAY</div>
+<div class="warning-banner" id="deadZoneWarn">☠️ DEAD ZONE — LOW OXYGEN — ESCAPE NOW</div>
+
+<!-- BIO PANEL -->
+<div id="bioPanel">
+  <h3>CELL STATUS</h3>
+  <div class="bio-row">Energy <span id="energyReadout2">60 / 100</span></div>
+  <div class="bio-row">Photosynthesis <span id="photoReadout2">0 E/s</span></div>
+  <div class="bio-row">Depth <span id="depthReadout2">0.0m</span></div>
+  <div class="bio-row">Light available <span id="lightReadout2">100%</span></div>
+</div>
+
+<!-- GOAL PANEL -->
+<div id="goalPanel">
+  <h3>MISSION</h3>
+  <div class="goal-row">Population <span id="popCount2">1 / 20</span></div>
+  <div class="goal-track"><div class="goal-fill" id="popFill" style="width:5%"></div></div>
+  <div style="margin-top:10px; font-size:10px; color:#3a5a6a; line-height:1.5;">
+    🟡 Yellow patches = nutrients<br>
+    🔴 Red zones = dead zones<br>
+    🔺 Red creature = predator
+  </div>
+</div>
+
+<!-- SCIENCE TIP -->
+<div id="scienceTip">
+  <strong>DID YOU KNOW?</strong>
+  Phytoplankton are responsible for producing over half of Earth's oxygen — more than all the world's forests combined.
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+<script type="module" src="main.js"></script>
+
+<script>
+// Extra HUD sync (mirrors main.js readouts to secondary elements)
+const TIPS = [
+  "Phytoplankton produce over 50% of Earth's oxygen — more than all forests combined.",
+  "Phytoplankton are the foundation of the marine food web. Without them, fish populations collapse.",
+  "Warming oceans are pushing phytoplankton toward the poles, disrupting food webs globally.",
+  "A single phytoplankton cell can photosynthesize and reproduce within one day under ideal conditions.",
+  "Agricultural runoff causes nutrient pollution that creates harmful algal blooms and dead zones.",
+  "The ocean's photic zone — where photosynthesis is possible — reaches only ~200m deep.",
+  "Phytoplankton absorb CO₂ from the atmosphere, making oceans a major carbon sink.",
+  "There are over 5,000 known species of phytoplankton, from diatoms to dinoflagellates.",
+];
+let tipIdx = 0;
+setInterval(() => {
+  tipIdx = (tipIdx+1) % TIPS.length;
+  const el = document.getElementById('scienceTip');
+  if (el) el.innerHTML = '<strong>DID YOU KNOW?</strong>' + TIPS[tipIdx];
+}, 8000);
+
+// Mirror HUD values to bio panel
+setInterval(() => {
+  const sync = [
+    ['energyReadout','energyReadout2'],
+    ['photoReadout','photoReadout2'],
+    ['depthReadout','depthReadout2'],
+    ['lightReadout','lightReadout2'],
+    ['popCount','popCount2'],
+  ];
+  sync.forEach(([from, to]) => {
+    const a = document.getElementById(from);
+    const b = document.getElementById(to);
+    if (a && b) b.textContent = (to === 'popCount2') ? a.textContent + ' / 20' : a.textContent;
+  });
+  // population bar
+  const pop = parseInt(document.getElementById('popCount')?.textContent || '1');
+  const fill = document.getElementById('popFill');
+  if (fill) fill.style.width = Math.min(100, (pop/20)*100) + '%';
+}, 100);
+</script>
+</body>
+</html>
